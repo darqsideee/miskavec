@@ -10,6 +10,7 @@ const sourceFiles = [
     // Utilities
     'src/utils/DOMHelpers.js',
     'src/utils/MathSolver.js',
+    'src/utils/NetworkInterceptor.js',
 
     // Humanizer
     'src/humanizer/BezierMouse.js',
