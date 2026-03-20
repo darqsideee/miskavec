@@ -5,81 +5,69 @@
 // ============================================
 class GameRouter {
 
-    // All supported game types with detection selectors (priority-ordered)
+    // ── Real umimeto.org / umimematiku.cz selectors ──
     static GAME_TYPES = {
+
         // ─── Psaná odpověď (Written Answer / Text Input) ───
         textInput: {
             name: 'Psaná odpověď',
             selectors: [
-                'input.answer', 'input[name="answer"]',
-                'input[type="text"][class*="answer"]',
-                'input[type="number"][class*="answer"]',
-                '.task input[type="text"]',
-                '.task input[type="number"]',
-                '.exercise input[type="text"]',
-                'input.form-control',
                 '#answer-input',
+                'input.answer',
+                'input[name="answer"]',
+                '.exercise input[type="text"]:not(.search-input)',
+                '.exercise input[type="number"]',
                 'input[data-answer]'
             ],
-            // Additional conditions to confirm this is the right module
             confirmSelectors: [
-                '.task', '.question', '.exercise', '[class*="task"]'
+                '#evaluate', '.exercise-header'
             ],
-            urlPatterns: ['/pocitani', '/chat', '/slovni-ulohy', '/doplnovani-textu']
+            urlPatterns: ['/pocitani', '/pocitani-', '/chat', '/slovni-ulohy', '/doplnovani-textu']
         },
 
         // ─── Rozhodovačka (Choice / Decision) ───
         choice: {
             name: 'Rozhodovačka',
             selectors: [
-                '.board button.answer',
-                '.board .answer-button',
-                'button[class*="answer"]',
-                '.answers button',
-                '.options button',
-                '.choices button',
-                '.alternatives button',
-                '[class*="answer-btn"]',
+                '.card[data-index]:not(.pool .card)',
                 '.answer-option',
-                'button[data-answer]'
+                '.answers .card',
+                'button.answer',
+                '.options .card'
             ],
             confirmSelectors: [
-                '.task', '.question', '.exercise'
+                '#evaluate', '.exercise-header'
             ],
-            urlPatterns: ['/rozhodovacka', '/porozumeni', '/oznacovani']
+            urlPatterns: ['/rozhodovacka', '/rozhodovacka-', '/porozumeni', '/oznacovani']
         },
 
         // ─── Pexeso (Memory / Matching) ───
         pexeso: {
             name: 'Pexeso',
             selectors: [
-                '.pexeso-card', '.card[class*="pexeso"]',
-                '.memory-card', '[class*="pexeso"]',
+                '.pexeso .card',
                 '.card-grid .card',
-                '.game-card',
-                '[data-card]'
+                '.memory-card'
             ],
-            confirmSelectors: [],
-            urlPatterns: ['/pexeso']
+            confirmSelectors: [
+                '.exercise-header'
+            ],
+            urlPatterns: ['/pexeso', '/pexeso-']
         },
 
         // ─── Přesouvání / Rozdělovačka (Drag & Drop / Sorting) ───
         dragDrop: {
             name: 'Přesouvání',
             selectors: [
-                '[draggable="true"]',
-                '.draggable', '.drag-item',
-                '[class*="draggable"]',
-                '[class*="sortable"]',
-                '.drop-zone', '.drop-target',
-                '[class*="drop-zone"]',
-                '.puzzle-piece'
+                '.pool .card',
+                '.pool [data-expr]',
+                '.card[data-expr]',
+                '[draggable="true"]'
             ],
             confirmSelectors: [
-                '.drop-zone', '.drop-target', '[class*="drop"]',
-                '.target-area', '.category'
+                '.target', '.pool', '#evaluate'
             ],
-            urlPatterns: ['/presouvani', '/rozdelovacka', '/mrizkovana', '/kalkulacka']
+            urlPatterns: ['/presouvani', '/presouvani-', '/rozdelovacka', '/rozdelovacka-', '/mrizkovana', '/kalkulacka']
         }
     };
 
@@ -97,7 +85,7 @@ class GameRouter {
             // Check URL patterns
             for (const pattern of config.urlPatterns) {
                 if (url.includes(pattern)) {
-                    score += 50; // Strong signal
+                    score += 50;
                     break;
                 }
             }
@@ -108,11 +96,10 @@ class GameRouter {
                     const elements = document.querySelectorAll(selector);
                     if (elements.length > 0) {
                         score += 10;
-                        // More elements = higher confidence
                         score += Math.min(elements.length * 2, 20);
                         break;
                     }
-                } catch { /* invalid selector */ }
+                } catch { }
             }
 
             // Check confirmation selectors
@@ -153,7 +140,7 @@ class GameRouter {
 
     /**
      * Dynamically discover selectors by analyzing the page.
-     * Fallback when standard selectors don't match.
+     * Tailored to umimeto.org structure.
      */
     static discoverSelectors() {
         const discovered = {
@@ -161,40 +148,33 @@ class GameRouter {
             buttons: [],
             cards: [],
             draggables: [],
+            targets: [],
+            pool: null,
             taskArea: null
         };
 
-        // Find all visible inputs
-        discovered.inputs = DOMHelpers.getVisibleElements('input[type="text"], input[type="number"], input:not([type])');
+        // Find visible inputs (exclude header search)
+        discovered.inputs = DOMHelpers.getVisibleElements(
+            'input[type="text"]:not(.search-input), input[type="number"]'
+        );
 
-        // Find all visible buttons with text
-        discovered.buttons = DOMHelpers.getVisibleElements('button, [role="button"], .btn')
-            .filter(b => b.textContent.trim().length > 0 && b.textContent.trim().length < 100);
+        // Find action buttons (tlacitko class)
+        discovered.buttons = DOMHelpers.getVisibleElements('.tlacitko, button.primary, button.secondary');
 
-        // Find elements that look like cards (similar-sized, multiple)
-        const allDivs = document.querySelectorAll('div, span, li');
-        const sizeGroups = new Map();
-        for (const div of allDivs) {
-            const rect = div.getBoundingClientRect();
-            if (rect.width > 30 && rect.height > 30 && rect.width < 300 && rect.height < 300) {
-                const key = `${Math.round(rect.width / 10) * 10}x${Math.round(rect.height / 10) * 10}`;
-                if (!sizeGroups.has(key)) sizeGroups.set(key, []);
-                sizeGroups.get(key).push(div);
-            }
-        }
-        // Groups of 6+ similar-sized elements could be cards
-        for (const [, group] of sizeGroups) {
-            if (group.length >= 6) {
-                discovered.cards.push(...group);
-                break;
-            }
-        }
+        // Find cards in pool
+        discovered.cards = [...document.querySelectorAll('.pool .card, .card[data-expr]')];
 
         // Find draggable elements
-        discovered.draggables = [...document.querySelectorAll('[draggable="true"]')];
+        discovered.draggables = [...document.querySelectorAll('[draggable="true"], .pool .card')];
 
-        // Find task area
-        const taskCandidates = ['main', '.board', '.task', '.question', '.exercise', '.content', '#app'];
+        // Find drop targets
+        discovered.targets = [...document.querySelectorAll('.target')];
+
+        // Pool
+        discovered.pool = document.querySelector('.pool');
+
+        // Task area
+        const taskCandidates = ['.exercise-header', '.content-box', 'main', '#app'];
         for (const sel of taskCandidates) {
             const el = document.querySelector(sel);
             if (el) { discovered.taskArea = el; break; }
