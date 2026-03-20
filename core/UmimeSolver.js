@@ -21,6 +21,11 @@ class UmimeSolver {
             ...config
         };
 
+        // Network interceptor (install EARLY to capture API data)
+        this.networkInterceptor = new NetworkInterceptor();
+        this.networkInterceptor.install();
+        window._networkInterceptor = this.networkInterceptor;
+
         // Core systems
         this.humanizer = new Humanizer(this.config.speed);
         this.stateManager = new StateManager();
