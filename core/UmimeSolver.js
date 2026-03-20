@@ -26,6 +26,11 @@ class UmimeSolver {
         this.networkInterceptor.install();
         window._networkInterceptor = this.networkInterceptor;
 
+        // Canvas interceptor (install EARLY to capture drawn text)
+        this.canvasInterceptor = new CanvasInterceptor();
+        this.canvasInterceptor.install();
+        window._canvasInterceptor = this.canvasInterceptor;
+
         // Core systems
         this.humanizer = new Humanizer(this.config.speed);
         this.stateManager = new StateManager();
